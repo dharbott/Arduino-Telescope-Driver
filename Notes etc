@@ -1,0 +1,810 @@
+Here be some notes that I write, in notepad++, while I code. It's easier than making sketches with pencil and paper, and it looks neater
+Thank you for reading
+************
+
+
+
+
+
+
+
+
+
+what is the distance between two points on the mag encoder?
+
+clockwise, distance
+	if target < current
+		distance is target + 4096 - current
+	if target > current
+		distance is target - current
+
+counter clockwise, distance
+	if target > current
+		distance is current + 4096 - target
+	if target < current
+		distance is current - target
+
+
+
+
+
+
+struct dMotorOp {
+  int motorOPWM;
+  int motor1PWM;
+  float angle0;
+  float angle1;  
+};
+
+struct myAngle {
+  int mdegrees;
+  int minutes;
+  int seconds;
+};
+
+//assume valid input
+//input is the 12-bit mag encoder's output
+struct myAngle countToAngle (float input){
+  myAngle temp;
+  float temp2 = (input / 4096.0 ) * 360.0;
+  temp.mdegrees = temp2;
+//  Serial.println(temp2);
+//  Serial.println(temp.mdegrees);
+  temp2 = (temp2 - temp.mdegrees) * 60.0;
+  temp.minutes = temp2;
+//  Serial.println(temp2);
+//  Serial.println(temp.minutes);
+  temp2 = (temp2 - temp.minutes) * 60.0;
+  temp.seconds = temp2;
+//  Serial.println(temp2);
+//  Serial.println(temp.seconds);
+  return temp;
+}
+
+//assume valid input
+int angleToCount (struct myAngle input) {
+  float temp = 0.0 + input.mdegrees;
+  temp = temp + (input.minutes / 60.0);
+  temp = temp + (input.seconds / 3600.0);
+  temp = (temp * 4096.0) / 360.0;
+
+//  Serial.println (temp);
+  return temp;
+}
+	motorGOTO (POSITION, POSITION) {
+	
+	}
+	
+	motorGOCW (inputAngle) {
+		//go at random PWM CW
+		while ((getAngle - inputAngle) <= 5.0) {
+			motorGo(125);
+		}
+		while ((getAngle - inputAngle) <= 0.0833) {
+			motorGo(19);
+		}
+	}
+	
+	motorGOCCW (inputAngle) {
+		//go at random PWM CCW
+		while ((getAngle - inputAngle) >= 5.0) {
+			motorGo(125);
+		}
+		while ((getAngle - inputAngle) >= 0.0833) {
+			motorGo(19);
+		}
+	}
+	
+	
+	131.25 * 16 * 100  =  210000 ecounts per revolution
+	210000 / 4096 mcounts per revolution = 51.26953125 ecounts per mcounts
+	
+	/////LETS TRY BRAKING with the motor driver, to get it to stop on a position!!!!
+	
+	////maybe we can use PID for 'accelerate up to speed & hold' - up to halfway to destination
+	// and use PID for 'move to point' as it is within 200-1000 counts of destination?
+	
+	http://www.codeproject.com/Articles/36459/PID-process-control-a-Cruise-Control-example
+	by Lowell Cady, http://www.codeproject.com/Members/lcady
+	
+	derived found onthe Wikipedia page:
+	
+		previous_error = 0
+		
+		integral = 0 
+		
+		start:
+			error = setpoint - measured_value
+			
+			integral = integral + error*dt
+			
+			derivative = (error - previous_error)/dt
+			
+			output = Kp*error + Ki*integral + Kd*derivative
+			
+			previous_error = error
+			
+			wait(dt)
+			
+			goto start
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
+
+*********************
+
+	METHOD 1 : LOOKUP TABLE - generation
+	
+	start at lowest pwm, 10. Increment PWM by 1 until 255
+		if there is minimum change of 16 count / 100 miliseconds
+			record count, record time
+			wait 1000 miliseconds? or maybe longer 2000 miliseconds
+			store the average count (float?) per milisecond into array pwm2Speed[256]
+				//might not be necessary as float, each count is already 1/16 of a revolution
+
+	REPEAT FOR OTHER DIRECTION
+	
+	when done : we'll have an array of average counts at specific pwm
+	make a new array
+	
+	output to screen : a graph of the PWM VS SPEED? or SPEED VS PWM?
+			
+**** need a pause function ****
+			
+			-= PAUSE =-
+			
+	Let's do PID with the encoder count
+		input : encoder count
+		output : PWM #
+		
+	
+	********** we don't need PID or a speed map yet **********
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+---------------------------
+passing struct by value will have to do.
+if it receives data from the PI or other outside source, it will have to make a copy,
+in order to put it in the queue, thus have to pass by value.
+
+---------
+byte - 8 bits, unsigned 0-255
+
+moperation definitions
+
+B0000 0001	1) motorGo(PWM), toPosition - refers to encoder 'count' position
+B0000 0010  2) motorGo(PWM), forTime - in miliseconds   //simplest like 3D printer
+B0000 0011	3) motorGo(PWM), forDistance - refers to 'count' distance, similar to 1)
+B0000 0100  //dont need acceleration function, no smooth accelerations in sky path
+			//end of operations so far
+
+
+struct
+
+	byte moperation
+	int motor0PWM
+	int motor1PWM
+	long motor0Arg
+	long motor1Arg
+	
+	
+	
+	================ by pointer, by reference =========
+	
+/**
+ * David Harbottle
+ * March 24, 2015
+ * 
+ * 
+ * The only thing we need is some ABS friendly lube for the
+ * worm to turn the wyrm gear at pwm-15.
+ * 
+ * At minimum pwm-19, rolling over (or overshoot) is 12-25 count,
+ * over 1 revolution
+ * 
+ * 
+ * -=Arduino UNO=-
+ * D13 - 12ME.1.CLK , 12ME.2.CLK
+ * D12 - 12ME.1.CS , 12ME.2.CS
+ * D11 - 12ME.1.DATA
+ * D10 - 12ME.2.DATA
+ * D09 - MD1.PWM
+ * D08 - MD1.INA
+ * D07 - MD1.INB
+ * D06 - MD2.PWM
+ * D05 - MD2.INA
+ * D04 - MD2.INB
+ * D03 - MQ1.SIG
+ * D02 - MQ2.SIG
+ * D01 - UNUSED
+ * D00 - UNUSED
+ * 
+ * A0 - LSOVR
+ * A1 - CMP.MD1.CS
+ * A2 - CMP.MD2.CS
+ * A3 - LSOUT
+ * A4 - Hall.DATA
+ * A5 - UNUSED
+ * 
+ * 
+ **/
+
+
+#include <QueueList.h>
+#include <DavidMotor.h>
+
+#define SELECT_PIN 12
+#define CLOCK_PIN 13
+#define DATA_PIN 11
+
+#define MD1_PWM 9
+#define MD1_INA 8
+#define MD1_INB 7
+
+#define MD2_PWM 6
+#define MD2_INA 5
+#define MD2_INB 4
+
+//#define QUAD_A_PIN 2 //not used
+//#define QUAD_B_PIN 3 //not used
+
+#define HALL_PIN A4
+
+#define MD1CS_PIN A1
+#define MD2CS_PIN A2
+
+#define LSOUT A3
+#define LSOVR A0
+
+DavidMotor davmot0 (MD1_PWM, MD1_INA, MD1_INB);
+DavidMotor davmot1 (MD2_PWM, MD2_INA, MD2_INB);
+
+struct dMotorOp {
+  byte moperation;
+  int motor0PWM;
+  int motor1PWM;
+  long motor0Arg;
+  long motor1Arg;
+};
+
+QueueList <dMotorOp*> queue;
+
+volatile long countA;  
+volatile long countB;
+
+long oldcount;
+
+void setup()
+{
+  dMotorOp* dtemp;
+
+  Serial.begin(19200); //Test Code
+
+  attachInterrupt(0, incrementCount0, HIGH);  
+  attachInterrupt(1, incrementCount1, HIGH);
+
+  //Serial.println("-------Helloo-------");   
+
+  davmot0.motorGo(0);
+  davmot1.motorGo(0);  
+  delay(500);
+
+  dMotorOp dmop0 = {
+    0,0,0,0,0  };
+  dMotorOp dmop1 = {
+    1,1,1,1,1  };
+  dMotorOp dmop2 = {
+    0,0,0,0,0  };
+  dMotorOp dmop3 = {
+    1,1,1,1,1  };
+//every push adds 34 bytes to the queue
+//13 bytes of which are the actual data
+//we can potentially store 700 dmops
+//before we run out of memory
+  queue.push (&dmop0);  
+  queue.push (&dmop1);
+  queue.push (&dmop2);
+  
+//120 bytes difference between push2 and push3
+  queue.push (&dmop3); 
+
+  while (!queue.isEmpty()) {
+
+    dtemp = queue.pop();
+    Serial.println (printdmop(dtemp));
+
+  }
+
+}
+
+
+void loop()
+{ 
+  Serial.println("--------------------------------"); 
+  oldcount = countB;
+  Serial.print ("oldcount : ");
+  Serial.println (countB);
+
+  // it is assumed that backing off a bit and then go forward
+  // allows the motor+gear to build some momentum ------
+  //  davmot1.motorGo(20);
+  //  delay(100);
+  //  davmot1.motorGo(0);
+  //  delay(100);
+
+  while ((countB - oldcount) <= 8000)
+  {
+    davmot1.motorGo(19);
+  }
+  Serial.print ("newcount : ");
+  Serial.println (countB);
+
+  davmot1.motorGo(0);  
+  delay(1000);
+
+}
+
+
+String printdmop (struct dMotorOp* dtemp) {
+  String temp = "";
+  temp = temp + "-" + dtemp->moperation;
+  temp = temp + "-" + dtemp->motor0PWM;
+  temp = temp + "-" + dtemp->motor1PWM;
+  temp = temp + "-" + dtemp->motor0Arg;
+  temp = temp + "-" + dtemp->motor1Arg; 
+  return temp;
+}
+
+void mfStart()
+{
+  //accelerate
+}
+
+void mfMiddle()
+{
+  //go at a constant speed
+}
+
+void mfEnd()
+{
+  //decelerate
+}
+
+
+float baseSpeed(){
+  unsigned long time0;  
+  unsigned long time1;
+  long count0;
+  long count1; 
+
+  time0 = millis();
+  count0 = countB;
+
+  delay(20000);
+
+  time1 = millis();
+  count1 = countB;
+
+  //16 counts per rev, 1000 msec per sec -> 62.5 scale, to get
+  //revolutions per second, return value units
+  return 62.5 * ((float)(count1 - count0) / (float)(time1 - time0));
+}
+
+
+//WORKS
+void incrementCount0(){
+  countA++;
+}
+void incrementCount1(){
+  countB++;
+}
+void decrementCount0(){
+  countA--;
+}
+void decrementCount1(){
+  countB--;
+}
+
+
+/**
+ * motor stuff to do
+ * 
+ * PRIORITY 1 : INSTRUCTION STACK 
+ * 
+ * - speed - count per seconds?
+ * speed recorded as count/millisecond?
+ * 
+ * - array of floats?
+ * - array size [256]?? big array... thats 500 bytes?
+ * 
+ * ---==--- need 2nd array for reverse direction....?
+ * 
+ * - interrupt - change directions, change function
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * Serial.println("--------------------");  
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(0);  
+ * delay(500);
+ * 
+ * attachInterrupt(1, incrementCount1, HIGH);
+ * Serial.println(baseSpeed());
+ * 
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(100);
+ * delay(500);
+ * Serial.println(baseSpeed());
+ * 
+ * Serial.println("--------------------");  
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(0);  
+ * delay(500);
+ * 
+ * attachInterrupt(1, decrementCount1, HIGH);
+ * Serial.println(baseSpeed());
+ * 
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(-100);
+ * delay(500);
+ * Serial.println(baseSpeed());
+ * 
+ * Serial.println("--------------------");  
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(0);  
+ * delay(500);
+ * 
+ * attachInterrupt(0, incrementCount0, HIGH);  
+ * Serial.println(countA);
+ * davmot1.motorGo(100);
+ * davmot2.motorGo(100);
+ * delay(3000);
+ * 
+ * Serial.println(countA);
+ * Serial.println("====================");
+ * Serial.println("--------------------");  
+ * 
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(0);
+ * delay(500);
+ * 
+ * attachInterrupt(0, decrementCount0, HIGH);  
+ * Serial.println(countA);
+ * davmot1.motorGo(-100);
+ * davmot2.motorGo(-100);
+ * delay(3000);
+ * 
+ * Serial.println(countA);
+ * Serial.println("====================");
+ * 
+ * 
+ **/
+
+
+
+
+	===================================================
+	
+	
+	=============== passing struct, pass by value======
+	
+/**
+ * David Harbottle
+ * March 24, 2015
+ * 
+ * 
+ * The only thing we need is some ABS friendly lube for the
+ * worm to turn the wyrm gear at pwm-15.
+ * 
+ * At minimum pwm-19, rolling over (or overshoot) is 12-25 count,
+ * over 1 revolution
+ * 
+ * 
+ * -=Arduino UNO=-
+ * D13 - 12ME.1.CLK , 12ME.2.CLK
+ * D12 - 12ME.1.CS , 12ME.2.CS
+ * D11 - 12ME.1.DATA
+ * D10 - 12ME.2.DATA
+ * D09 - MD1.PWM
+ * D08 - MD1.INA
+ * D07 - MD1.INB
+ * D06 - MD2.PWM
+ * D05 - MD2.INA
+ * D04 - MD2.INB
+ * D03 - MQ1.SIG
+ * D02 - MQ2.SIG
+ * D01 - UNUSED
+ * D00 - UNUSED
+ * 
+ * A0 - LSOVR
+ * A1 - CMP.MD1.CS
+ * A2 - CMP.MD2.CS
+ * A3 - LSOUT
+ * A4 - Hall.DATA
+ * A5 - UNUSED
+ * 
+ * 
+ **/
+
+
+#include <QueueList.h>
+#include <DavidMotor.h>
+
+#define SELECT_PIN 12
+#define CLOCK_PIN 13
+#define DATA_PIN 11
+
+#define MD1_PWM 9
+#define MD1_INA 8
+#define MD1_INB 7
+
+#define MD2_PWM 6
+#define MD2_INA 5
+#define MD2_INB 4
+
+//#define QUAD_A_PIN 2 //not used
+//#define QUAD_B_PIN 3 //not used
+
+#define HALL_PIN A4
+
+#define MD1CS_PIN A1
+#define MD2CS_PIN A2
+
+#define LSOUT A3
+#define LSOVR A0
+
+DavidMotor davmot0 (MD1_PWM, MD1_INA, MD1_INB);
+DavidMotor davmot1 (MD2_PWM, MD2_INA, MD2_INB);
+
+struct dMotorOp {
+  byte moperation;
+  int motor0PWM;
+  int motor1PWM;
+  long motor0Arg;
+  long motor1Arg;
+};
+
+QueueList <dMotorOp> queue;
+
+volatile long countA;  
+volatile long countB;
+
+long oldcount;
+
+void setup()
+{
+  dMotorOp dtemp;
+
+  Serial.begin(19200); //Test Code
+
+  attachInterrupt(0, incrementCount0, HIGH);  
+  attachInterrupt(1, incrementCount1, HIGH);
+
+  //Serial.println("-------Helloo-------");   
+
+  davmot0.motorGo(0);
+  davmot1.motorGo(0);  
+  delay(500);
+
+  dMotorOp dmop0 = {
+    0,0,0,0,0  };
+  dMotorOp dmop1 = {
+    1,1,1,1,1  };
+  dMotorOp dmop2 = {
+    0,0,0,0,0  };
+  dMotorOp dmop3 = {
+    1,1,1,1,1  };
+//every push adds 34 bytes to the queue
+//13 bytes of which are the actual data
+//we can potentially store 700 dmops
+//before we run out of memory
+  queue.push (dmop0);  
+  queue.push (dmop1);
+  queue.push (dmop2);
+  
+//120 bytes difference between push2 and push3
+  queue.push (dmop3); 
+
+  while (!queue.isEmpty()) {
+
+    dtemp = queue.pop();
+    Serial.println (printdmop(dtemp));
+
+  }
+
+}
+
+
+void loop()
+{ 
+  Serial.println("--------------------------------"); 
+  oldcount = countB;
+  Serial.print ("oldcount : ");
+  Serial.println (countB);
+
+  // it is assumed that backing off a bit and then go forward
+  // allows the motor+gear to build some momentum ------
+  //  davmot1.motorGo(20);
+  //  delay(100);
+  //  davmot1.motorGo(0);
+  //  delay(100);
+
+  while ((countB - oldcount) <= 8000)
+  {
+    davmot1.motorGo(19);
+  }
+  Serial.print ("newcount : ");
+  Serial.println (countB);
+
+  davmot1.motorGo(0);  
+  delay(1000);
+
+}
+
+
+String printdmop (struct dMotorOp& dtemp) {
+  String temp = "";
+  temp = temp + "-" + dtemp.moperation;
+  temp = temp + "-" + dtemp.motor0PWM;
+  temp = temp + "-" + dtemp.motor1PWM;
+  temp = temp + "-" + dtemp.motor0Arg;
+  temp = temp + "-" + dtemp.motor1Arg; 
+  return temp;
+}
+
+void mfStart()
+{
+  //accelerate
+}
+
+void mfMiddle()
+{
+  //go at a constant speed
+}
+
+void mfEnd()
+{
+  //decelerate
+}
+
+
+float baseSpeed(){
+  unsigned long time0;  
+  unsigned long time1;
+  long count0;
+  long count1; 
+
+  time0 = millis();
+  count0 = countB;
+
+  delay(20000);
+
+  time1 = millis();
+  count1 = countB;
+
+  //16 counts per rev, 1000 msec per sec -> 62.5 scale, to get
+  //revolutions per second, return value units
+  return 62.5 * ((float)(count1 - count0) / (float)(time1 - time0));
+}
+
+
+//WORKS
+void incrementCount0(){
+  countA++;
+}
+void incrementCount1(){
+  countB++;
+}
+void decrementCount0(){
+  countA--;
+}
+void decrementCount1(){
+  countB--;
+}
+
+
+/**
+ * motor stuff to do
+ * 
+ * PRIORITY 1 : INSTRUCTION STACK 
+ * 
+ * - speed - count per seconds?
+ * speed recorded as count/millisecond?
+ * 
+ * - array of floats?
+ * - array size [256]?? big array... thats 500 bytes?
+ * 
+ * ---==--- need 2nd array for reverse direction....?
+ * 
+ * - interrupt - change directions, change function
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * Serial.println("--------------------");  
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(0);  
+ * delay(500);
+ * 
+ * attachInterrupt(1, incrementCount1, HIGH);
+ * Serial.println(baseSpeed());
+ * 
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(100);
+ * delay(500);
+ * Serial.println(baseSpeed());
+ * 
+ * Serial.println("--------------------");  
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(0);  
+ * delay(500);
+ * 
+ * attachInterrupt(1, decrementCount1, HIGH);
+ * Serial.println(baseSpeed());
+ * 
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(-100);
+ * delay(500);
+ * Serial.println(baseSpeed());
+ * 
+ * Serial.println("--------------------");  
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(0);  
+ * delay(500);
+ * 
+ * attachInterrupt(0, incrementCount0, HIGH);  
+ * Serial.println(countA);
+ * davmot1.motorGo(100);
+ * davmot2.motorGo(100);
+ * delay(3000);
+ * 
+ * Serial.println(countA);
+ * Serial.println("====================");
+ * Serial.println("--------------------");  
+ * 
+ * davmot1.motorGo(0);
+ * davmot2.motorGo(0);
+ * delay(500);
+ * 
+ * attachInterrupt(0, decrementCount0, HIGH);  
+ * Serial.println(countA);
+ * davmot1.motorGo(-100);
+ * davmot2.motorGo(-100);
+ * delay(3000);
+ * 
+ * Serial.println(countA);
+ * Serial.println("====================");
+ * 
+ * 
+ **/
+
+
+
+
+	===================================================
